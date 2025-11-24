@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - AI-LMS{% endblock %}
+
+{% block public_content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="text-center mb-5">
+            <h1 class="display-3 fw-bold mb-3">
+                <i class="fas fa-graduation-cap text-primary"></i>
+                AI-Powered Learning Management System
+            </h1>
+            <p class="lead text-muted">Transform your learning experience with AI-powered education</p>
+        </div>
+        
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card h-100 text-center p-4">
+                    <div class="card-body">
+                        <i class="fas fa-book-reader fa-3x text-primary mb-3"></i>
+                        <h5 class="card-title">Smart Learning</h5>
+                        <p class="card-text">Access course materials, PDFs, and resources anytime, anywhere</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 text-center p-4">
+                    <div class="card-body">
+                        <i class="fas fa-robot fa-3x text-success mb-3"></i>
+                        <h5 class="card-title">AI Chatbot</h5>
+                        <p class="card-text">Get instant answers from your course materials with AI assistance</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100 text-center p-4">
+                    <div class="card-body">
+                        <i class="fas fa-clipboard-check fa-3x text-warning mb-3"></i>
+                        <h5 class="card-title">Interactive Quizzes</h5>
+                        <p class="card-text">Test your knowledge with auto-graded quizzes and instant feedback</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body text-center p-5">
+                        <h3 class="mb-4">Get Started</h3>
+                        <div class="d-grid gap-3">
+                            <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg">
+                                <i class="fas fa-sign-in-alt me-2"></i>Login
+                            </a>
+                            <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-lg">
+                                <i class="fas fa-user-plus me-2"></i>Register as Student
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5">
+            <h4 class="mb-3">Default Login Credentials</h4>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <h6>Admin</h6>
+                            <p class="mb-0 small">admin@gmail.com</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h6>HOD</h6>
+                            <p class="mb-0 small">hod@gmail.com</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body">
+                            <h6>Student</h6>
+                            <p class="mb-0 small">student@gmail.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

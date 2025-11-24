@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+
+{% block title %}Create Quiz - {{ course.name }}{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link active" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="fas fa-plus me-2"></i>Create Quiz for {{ course.name }}</h2>
+
+<div class="card">
+    <div class="card-body">
+        <form id="quizForm">
+            <div class="mb-3">
+                <label for="title" class="form-label">Quiz Title</label>
+                <input type="text" class="form-control" id="title" required>
+            </div>
+            
+            <div class="mb-3">
+                <label for="description" class="form-label">Description</label>
+                <textarea class="form-control" id="description" rows="2"></textarea>
+            </div>
+            
+            <div class="mb-3">
+                <label for="duration" class="form-label">Duration (minutes)</label>
+                <input type="number" class="form-control" id="duration" min="1" value="30" required>
+            </div>
+            
+            <hr>
+            
+            <h5 class="mb-3">Questions</h5>
+            <div id="questionsContainer"></div>
+            
+            <button type="button" class="btn btn-outline-primary mb-3" onclick="addQuestion()">
+                <i class="fas fa-plus me-2"></i>Add Question
+            </button>
+            
+            <hr>
+            
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Quiz
+                </button>
+                <a href="{{ url_for('hod_quizzes', course_id=course.id) }}" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let questionCount = 0;
+
+function addQuestion() {
+    questionCount++;
+    const container = document.getElementById('questionsContainer');
+    const questionDiv = document.createElement('div');
+    questionDiv.className = 'card mb-3';
+    questionDiv.id = `question-${questionCount}`;
+    questionDiv.innerHTML = `
+        <div class="card-body">
+            <div class="d-flex justify-content-between mb-3">
+                <h6>Question ${questionCount}</h6>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeQuestion(${questionCount})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Question Text</label>
+                <input type="text" class="form-control question-text" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Question Type</label>
+                <select class="form-select question-type" onchange="updateQuestionFields(${questionCount})" required>
+                    <option value="multiple_choice">Multiple Choice</option>
+                    <option value="true_false">True/False</option>
+                    <option value="yes_no">Yes/No</option>
+                    <option value="open_ended">Open Ended (Manual marking)</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Points</label>
+                <input type="number" class="form-control question-points" min="1" value="10" required>
+            </div>
+            <div class="options-container-${questionCount}">
+                <div class="mb-2">
+                    <label class="form-label">Number of Options (2-10)</label>
+                    <input type="number" class="form-control option-count" min="2" max="10" value="4" onchange="updateOptionsCount(${questionCount})">
+                </div>
+                <div class="options-list-${questionCount} mb-2">
+                    <label class="form-label">Options</label>
+                    <input type="text" class="form-control mb-2 option" placeholder="Enter option 1" required>
+                    <input type="text" class="form-control mb-2 option" placeholder="Enter option 2" required>
+                    <input type="text" class="form-control mb-2 option" placeholder="Enter option 3">
+                    <input type="text" class="form-control mb-2 option" placeholder="Enter option 4">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Correct Answer(s) - Check all that apply</label>
+                    <div class="correct-answers-${questionCount}">
+                        <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="0"><label class="form-check-label">Option 1</label></div>
+                        <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="1"><label class="form-check-label">Option 2</label></div>
+                        <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="2"><label class="form-check-label">Option 3</label></div>
+                        <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="3"><label class="form-check-label">Option 4</label></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(questionDiv);
+}
+
+function updateOptionsCount(questionId) {
+    const questionDiv = document.getElementById(`question-${questionId}`);
+    const count = parseInt(questionDiv.querySelector('.option-count').value) || 4;
+    const optionsList = questionDiv.querySelector(`.options-list-${questionId}`);
+    const correctAnswers = questionDiv.querySelector(`.correct-answers-${questionId}`);
+    
+    let optionsHTML = '<label class="form-label">Options</label>';
+    for (let i = 0; i < count; i++) {
+        const required = i < 2 ? 'required' : '';
+        optionsHTML += `<input type="text" class="form-control mb-2 option" placeholder="Enter option ${i + 1}" ${required}>`;
+    }
+    optionsList.innerHTML = optionsHTML;
+    
+    let correctHTML = '';
+    for (let i = 0; i < count; i++) {
+        correctHTML += `<div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="${i}"><label class="form-check-label">Option ${i + 1}</label></div>`;
+    }
+    correctAnswers.innerHTML = correctHTML;
+}
+
+function updateQuestionFields(questionId) {
+    const questionDiv = document.getElementById(`question-${questionId}`);
+    const questionType = questionDiv.querySelector('.question-type').value;
+    const optionsContainer = questionDiv.querySelector(`.options-container-${questionId}`);
+    
+    let optionsHTML = '';
+    
+    if (questionType === 'multiple_choice') {
+        optionsHTML = `
+            <div class="mb-2">
+                <label class="form-label">Number of Options (2-10)</label>
+                <input type="number" class="form-control option-count" min="2" max="10" value="4" onchange="updateOptionsCount(${questionId})">
+            </div>
+            <div class="options-list-${questionId} mb-2">
+                <label class="form-label">Options</label>
+                <input type="text" class="form-control mb-2 option" placeholder="Enter option 1" required>
+                <input type="text" class="form-control mb-2 option" placeholder="Enter option 2" required>
+                <input type="text" class="form-control mb-2 option" placeholder="Enter option 3">
+                <input type="text" class="form-control mb-2 option" placeholder="Enter option 4">
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Correct Answer(s) - Check all that apply</label>
+                <div class="correct-answers-${questionId}">
+                    <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="0"><label class="form-check-label">Option 1</label></div>
+                    <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="1"><label class="form-check-label">Option 2</label></div>
+                    <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="2"><label class="form-check-label">Option 3</label></div>
+                    <div class="form-check"><input type="checkbox" class="form-check-input correct-answer" value="3"><label class="form-check-label">Option 4</label></div>
+                </div>
+            </div>
+        `;
+    } else if (questionType === 'true_false') {
+        optionsHTML = `
+            <div class="mb-2">
+                <label class="form-label">Options</label>
+                <input type="text" class="form-control mb-2 option" value="True" readonly>
+                <input type="text" class="form-control mb-2 option" value="False" readonly>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Correct Answer</label>
+                <select class="form-select correct-answer" required>
+                    <option value="0">True</option>
+                    <option value="1">False</option>
+                </select>
+            </div>
+        `;
+    } else if (questionType === 'yes_no') {
+        optionsHTML = `
+            <div class="mb-2">
+                <label class="form-label">Options</label>
+                <input type="text" class="form-control mb-2 option" value="Yes" readonly>
+                <input type="text" class="form-control mb-2 option" value="No" readonly>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Correct Answer</label>
+                <select class="form-select correct-answer" required>
+                    <option value="0">Yes</option>
+                    <option value="1">No</option>
+                </select>
+            </div>
+        `;
+    } else if (questionType === 'open_ended') {
+        optionsHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                This is an open-ended question. Students will provide a text answer that requires manual marking by the HOD.
+            </div>
+            <input type="hidden" class="option" value="">
+            <input type="hidden" class="correct-answer" value="">
+        `;
+    }
+    
+    optionsContainer.innerHTML = optionsHTML;
+}
+
+function removeQuestion(id) {
+    document.getElementById(`question-${id}`).remove();
+}
+
+document.getElementById('quizForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const title = document.getElementById('title').value;
+    const description = document.getElementById('description').value;
+    const duration = document.getElementById('duration').value;
+    
+    const questions = [];
+    const questionDivs = document.querySelectorAll('#questionsContainer > .card');
+    
+    questionDivs.forEach(div => {
+        const questionText = div.querySelector('.question-text').value;
+        const questionType = div.querySelector('.question-type').value;
+        const questionPoints = parseInt(div.querySelector('.question-points').value);
+        const options = Array.from(div.querySelectorAll('.option')).map(opt => opt.value).filter(opt => opt !== '');
+        
+        let correct = null;
+        if (questionType === 'multiple_choice') {
+            const checkedBoxes = Array.from(div.querySelectorAll('.correct-answer:checked'));
+            correct = checkedBoxes.map(box => parseInt(box.value));
+            if (correct.length === 0) {
+                alert('Please select at least one correct answer for multiple choice questions');
+                throw new Error('No correct answer selected');
+            }
+        } else {
+            const correctAnswer = div.querySelector('.correct-answer');
+            if (correctAnswer && correctAnswer.value !== '') {
+                correct = questionType === 'open_ended' ? null : parseInt(correctAnswer.value);
+            }
+        }
+        
+        questions.push({
+            question: questionText,
+            type: questionType,
+            points: questionPoints,
+            options: options,
+            correct: correct
+        });
+    });
+    
+    if (questions.length === 0) {
+        alert('Please add at least one question');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('duration', duration);
+    formData.append('questions', JSON.stringify(questions));
+    
+    try {
+        const response = await fetch('{{ url_for("hod_quizzes", course_id=course.id) }}', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (response.ok) {
+            window.location.href = '{{ url_for("hod_quizzes", course_id=course.id) }}';
+        } else {
+            alert('Error creating quiz');
+        }
+    } catch (error) {
+        alert('Error creating quiz');
+    }
+});
+
+// Add first question on load
+addQuestion();
+</script>
+{% endblock %}

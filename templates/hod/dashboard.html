@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}HOD Dashboard{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link active" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>HOD Dashboard</h2>
+
+<div class="alert alert-info">
+    <i class="fas fa-building me-2"></i>Department: <strong>{{ department.name }}</strong>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <h3>{{ course_count }}</h3>
+            <p><i class="fas fa-book me-2"></i>Courses</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card success">
+            <h3>{{ material_count }}</h3>
+            <p><i class="fas fa-file-pdf me-2"></i>Materials</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card warning">
+            <h3>{{ quiz_count }}</h3>
+            <p><i class="fas fa-clipboard-check me-2"></i>Quizzes</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-tasks me-2"></i>Quick Actions</h5>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('hod_courses') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-plus-circle me-2 text-primary"></i>Manage Courses
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

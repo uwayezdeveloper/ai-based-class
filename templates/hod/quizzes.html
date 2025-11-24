@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Course Quizzes - {{ course.name }}{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link active" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fas fa-clipboard-check me-2"></i>Quizzes: {{ course.name }}</h2>
+        <p class="text-muted mb-0">{{ course.code }}</p>
+    </div>
+    <a href="{{ url_for('hod_create_quiz', course_id=course.id) }}" class="btn btn-primary">
+        <i class="fas fa-plus me-2"></i>Create Quiz
+    </a>
+</div>
+
+<div class="row g-4">
+    {% for quiz in quizzes %}
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ quiz.title }}</h5>
+                <p class="card-text">{{ quiz.description }}</p>
+                <p class="mb-2">
+                    <i class="fas fa-clock me-2"></i><strong>Duration:</strong> {{ quiz.duration }} minutes
+                </p>
+                <p class="mb-2">
+                    <i class="fas fa-question-circle me-2"></i><strong>Questions:</strong> {{ quiz.questions|length if quiz.questions is string else 0 }}
+                </p>
+                <p class="text-muted small mb-0">Created: {{ quiz.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                <div class="mt-3">
+                    <a href="{{ url_for('hod_quiz_submissions', quiz_id=quiz.id) }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-list-check me-1"></i>View Submissions
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

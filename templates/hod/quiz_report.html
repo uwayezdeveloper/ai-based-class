@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Report - {{ quiz.title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 3px solid #4f46e5;
+            padding-bottom: 20px;
+        }
+        .header h1 {
+            color: #4f46e5;
+            margin: 0;
+        }
+        .header p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: normal;
+            opacity: 0.9;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .submissions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+        }
+        .submissions-table th,
+        .submissions-table td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        .submissions-table th {
+            background-color: #4f46e5;
+            color: white;
+            font-weight: bold;
+        }
+        .submissions-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-completed {
+            background-color: #10b981;
+            color: white;
+        }
+        .status-pending {
+            background-color: #f59e0b;
+            color: white;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+        }
+        @media print {
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Quiz Performance Report</h1>
+        <p><strong>{{ quiz.title }}</strong></p>
+        <p>{{ quiz.course_name }} - {{ quiz.department_name }}</p>
+        <p>Generated: {{ now().strftime('%Y-%m-%d %H:%M') }}</p>
+    </div>
+
+    <button class="no-print" onclick="window.print()" style="padding: 10px 20px; background: #4f46e5; color: white; border: none; border-radius: 5px; cursor: pointer; margin-bottom: 20px;">
+        🖨️ Print Report
+    </button>
+
+    <h2>📈 Overall Statistics</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Submissions</h3>
+            <div class="value">{{ stats.total_submissions }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Fully Marked</h3>
+            <div class="value">{{ stats.completed }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Pending Review</h3>
+            <div class="value">{{ stats.pending }}</div>
+        </div>
+        <div class="stat-card">
+            <h3>Average Score</h3>
+            <div class="value">{{ "%.1f"|format((stats.avg_score / total_points * 100) if total_points > 0 else 0) }}%</div>
+        </div>
+        <div class="stat-card">
+            <h3>Highest Score</h3>
+            <div class="value">{{ stats.highest_score }} pts</div>
+        </div>
+        <div class="stat-card">
+            <h3>Lowest Score</h3>
+            <div class="value">{{ stats.lowest_score }} pts</div>
+        </div>
+    </div>
+
+    <h2>👥 Student Performance</h2>
+    <table class="submissions-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Student Name</th>
+                <th>Email</th>
+                <th>Auto Score</th>
+                <th>Manual Score</th>
+                <th>Total Score</th>
+                <th>Percentage</th>
+                <th>Status</th>
+                <th>Submitted At</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if submissions %}
+                {% for submission in submissions %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ submission.student_name }}</td>
+                    <td>{{ submission.student_email }}</td>
+                    <td>{{ submission.auto_score|default(0) }} pts</td>
+                    <td>{{ submission.manual_score|default('-') if submission.manual_score is not none else 'N/A' }}</td>
+                    <td><strong>{{ submission.score }} pts</strong></td>
+                    <td>{{ "%.1f"|format((submission.score / total_points * 100) if total_points > 0 else 0) }}%</td>
+                    <td>
+                        <span class="status-badge status-{{ submission.marking_status }}">
+                            {{ submission.marking_status|upper }}
+                        </span>
+                    </td>
+                    <td>{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 40px;">
+                        No submissions available
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <p><strong>AI-Powered Learning Management System</strong></p>
+        <p>This report is auto-generated and reflects the current state of quiz submissions.</p>
+    </div>
+</body>
+</html>

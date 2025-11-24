@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}Take Quiz - {{ quiz.title }}{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('student_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('student_departments') }}">
+    <i class="fas fa-building me-2"></i>Select Department
+</a>
+<a class="nav-link active" href="{{ url_for('student_courses') }}">
+    <i class="fas fa-book me-2"></i>My Courses
+</a>
+<a class="nav-link" href="{{ url_for('student_chatbot') }}">
+    <i class="fas fa-robot me-2"></i>AI Chatbot
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-body">
+        <h2><i class="fas fa-clipboard-check me-2"></i>{{ quiz.title }}</h2>
+        <p class="text-muted">{{ quiz.description }}</p>
+        <p class="mb-0">
+            <i class="fas fa-clock me-2"></i><strong>Time Remaining:</strong> 
+            <span id="timer" class="badge bg-danger">{{ quiz.duration }}:00</span>
+        </p>
+    </div>
+</div>
+
+<form id="quizForm">
+    {% for question in quiz.questions %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">
+                Question {{ loop.index }}
+                <span class="badge bg-info ms-2">{{ question.points|default(10) }} pts</span>
+            </h5>
+            <p class="mb-3">{{ question.question }}</p>
+            
+            {% if question.type == 'open_ended' %}
+                <div class="mb-3">
+                    <label class="form-label">Your Answer:</label>
+                    <textarea class="form-control" name="question_{{ loop.index0 }}" 
+                              rows="4" placeholder="Type your answer here..." required></textarea>
+                    <small class="text-muted">This question requires manual marking by your instructor.</small>
+                </div>
+            {% elif question.type == 'multiple_choice' %}
+                <small class="text-info mb-2 d-block"><i class="fas fa-info-circle"></i> Select all that apply</small>
+                {% set question_idx = loop.index0 %}
+                {% for option in question.options %}
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" 
+                           name="question_{{ question_idx }}_{{ loop.index0 }}" 
+                           id="q{{ question_idx }}_opt{{ loop.index0 }}" 
+                           value="{{ loop.index0 }}">
+                    <label class="form-check-label" for="q{{ question_idx }}_opt{{ loop.index0 }}">
+                        {{ option }}
+                    </label>
+                </div>
+                {% endfor %}
+            {% else %}
+                {% set question_idx = loop.index0 %}
+                {% for option in question.options %}
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="radio" 
+                           name="question_{{ question_idx }}" 
+                           id="q{{ question_idx }}_opt{{ loop.index0 }}" 
+                           value="{{ loop.index0 }}" required>
+                    <label class="form-check-label" for="q{{ question_idx }}_opt{{ loop.index0 }}">
+                        {{ option }}
+                    </label>
+                </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    
+    <div class="d-grid">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="fas fa-paper-plane me-2"></i>Submit Quiz
+        </button>
+    </div>
+</form>
+
+<!-- Result Modal -->
+<div class="modal fade" id="resultModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>Quiz Completed!</h5>
+            </div>
+            <div class="modal-body text-center">
+                <h2 id="scoreDisplay" class="display-4 mb-3"></h2>
+                <p id="resultText" class="lead"></p>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('student_dashboard') }}" class="btn btn-primary">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Timer functionality
+let timeLimit = {{ quiz.duration }} * 60; // Convert to seconds
+let timerInterval;
+
+function updateTimer() {
+    const minutes = Math.floor(timeLimit / 60);
+    const seconds = timeLimit % 60;
+    document.getElementById('timer').textContent = 
+        `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    if (timeLimit <= 0) {
+        clearInterval(timerInterval);
+        submitQuiz();
+    }
+    timeLimit--;
+}
+
+timerInterval = setInterval(updateTimer, 1000);
+
+// Form submission
+document.getElementById('quizForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    clearInterval(timerInterval);
+    await submitQuiz();
+});
+
+async function submitQuiz() {
+    const form = document.getElementById('quizForm');
+    const answers = {};
+    
+    // Process all questions
+    const questionCards = form.querySelectorAll('.card');
+    questionCards.forEach((card, index) => {
+        const questionNum = index;
+        
+        // Check for textarea (open-ended)
+        const textarea = card.querySelector('textarea');
+        if (textarea) {
+            answers[questionNum] = textarea.value;
+            return;
+        }
+        
+        // Check for radio buttons (single answer)
+        const radio = card.querySelector('input[type="radio"]:checked');
+        if (radio) {
+            answers[questionNum] = parseInt(radio.value);
+            return;
+        }
+        
+        // Check for checkboxes (multiple answers)
+        const checkboxes = card.querySelectorAll('input[type="checkbox"]:checked');
+        if (checkboxes.length > 0) {
+            answers[questionNum] = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            return;
+        }
+    });
+    
+    try {
+        const response = await fetch('{{ url_for("student_submit_quiz", quiz_id=quiz.id) }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ answers: answers })
+        });
+        
+        const result = await response.json();
+        
+        let resultMessage = '';
+        if (result.requires_manual_marking) {
+            document.getElementById('scoreDisplay').textContent = 
+                `${result.auto_points}/${result.auto_total_points} pts (Auto)`;
+            resultMessage = `Auto-marked score: ${result.auto_points}/${result.auto_total_points} points\n` +
+                          `Questions pending manual marking: ${result.manual_total_points} points\n\n` +
+                          `Your final score will be updated once your instructor reviews the open-ended questions.`;
+        } else {
+            document.getElementById('scoreDisplay').textContent = 
+                `${result.score.toFixed(2)}% (${result.points}/${result.total_points} pts)`;
+            resultMessage = `You scored ${result.points} out of ${result.total_points} points!`;
+        }
+        
+        document.getElementById('resultText').textContent = resultMessage;
+        document.getElementById('resultText').style.whiteSpace = 'pre-line';
+        
+        const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+        modal.show();
+    } catch (error) {
+        alert('Error submitting quiz. Please try again.');
+    }
+}
+</script>
+{% endblock %}

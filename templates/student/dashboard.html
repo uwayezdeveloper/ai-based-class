@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Student Dashboard{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link active" href="{{ url_for('student_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('student_departments') }}">
+    <i class="fas fa-building me-2"></i>Select Department
+</a>
+<a class="nav-link" href="{{ url_for('student_courses') }}">
+    <i class="fas fa-book me-2"></i>My Courses
+</a>
+<a class="nav-link" href="{{ url_for('student_chatbot') }}">
+    <i class="fas fa-robot me-2"></i>AI Chatbot
+</a>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Student Dashboard</h2>
+
+{% if department %}
+<div class="alert alert-info">
+    <i class="fas fa-building me-2"></i>Current Department: <strong>{{ department.name }}</strong>
+    <a href="{{ url_for('student_departments') }}" class="btn btn-sm btn-outline-primary float-end">
+        Change Department
+    </a>
+</div>
+{% else %}
+<div class="alert alert-warning">
+    <i class="fas fa-exclamation-triangle me-2"></i>
+    Please <a href="{{ url_for('student_departments') }}" class="alert-link">select a department</a> to get started
+</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <h3>{{ course_count }}</h3>
+            <p><i class="fas fa-book me-2"></i>Available Courses</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card success">
+            <h3>{{ material_count }}</h3>
+            <p><i class="fas fa-file-pdf me-2"></i>Study Materials</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card warning">
+            <h3>{{ quiz_count }}</h3>
+            <p><i class="fas fa-clipboard-check me-2"></i>Quizzes Completed</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-tasks me-2"></i>Quick Actions</h5>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('student_courses') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-book me-2 text-primary"></i>Browse Courses
+                    </a>
+                    <a href="{{ url_for('student_chatbot') }}" class="list-group-item list-group-item-action">
+                        <i class="fas fa-robot me-2 text-success"></i>Chat with AI Assistant
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-lightbulb me-2"></i>Welcome!</h5>
+                <p class="card-text">
+                    Welcome to your AI-Powered Learning Management System dashboard. 
+                    Here you can access course materials, take quizzes, and chat with our AI assistant.
+                </p>
+                <p class="card-text">
+                    <strong>Tips:</strong>
+                </p>
+                <ul>
+                    <li>Upload and read PDF materials for your courses</li>
+                    <li>Use the AI chatbot to get instant help</li>
+                    <li>Complete quizzes to test your knowledge</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

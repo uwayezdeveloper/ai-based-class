@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz Submissions - {{ quiz.title }}{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link active" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="fas fa-file-alt me-2"></i>Quiz Submissions</h2>
+        <p class="text-muted mb-0">{{ quiz.title }} - {{ course.name }}</p>
+    </div>
+    <div>
+        <a href="{{ url_for('hod_generate_report', quiz_id=quiz.id) }}" class="btn btn-success" target="_blank">
+            <i class="fas fa-download me-2"></i>Generate Report
+        </a>
+        <a href="{{ url_for('hod_quizzes', course_id=course.id) }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Quizzes
+        </a>
+    </div>
+</div>
+
+<!-- Statistics -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h6 class="card-title">Total Submissions</h6>
+                <h2>{{ submissions|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <h6 class="card-title">Fully Marked</h6>
+                <h2>{{ submissions|selectattr('marking_status', 'equalto', 'completed')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <h6 class="card-title">Pending Review</h6>
+                <h2>{{ submissions|selectattr('marking_status', 'equalto', 'pending')|list|length }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <h6 class="card-title">Average Score</h6>
+                <h2>{{ "%.1f"|format(avg_score) }}%</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Submissions Table -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-list me-2"></i>All Submissions</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Student Name</th>
+                        <th>Email</th>
+                        <th>Auto Score</th>
+                        <th>Manual Score</th>
+                        <th>Total Score</th>
+                        <th>Status</th>
+                        <th>Submitted At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if submissions %}
+                        {% for submission in submissions %}
+                        <tr>
+                            <td>{{ submission.student_name }}</td>
+                            <td>{{ submission.student_email }}</td>
+                            <td>
+                                <span class="badge bg-info">
+                                    {{ submission.auto_score|default(0) }} pts
+                                </span>
+                            </td>
+                            <td>
+                                {% if submission.manual_score is not none %}
+                                    <span class="badge bg-success">
+                                        {{ submission.manual_score }} pts
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-secondary">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ submission.score }} pts</strong>
+                                ({{ "%.1f"|format((submission.score / total_points * 100) if total_points > 0 else 0) }}%)
+                            </td>
+                            <td>
+                                {% if submission.marking_status == 'completed' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-check-circle"></i> Completed
+                                    </span>
+                                {% elif submission.marking_status == 'pending' %}
+                                    <span class="badge bg-warning">
+                                        <i class="fas fa-clock"></i> Pending Review
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-hourglass-half"></i> Partially Marked
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>
+                                <a href="{{ url_for('hod_mark_submission', submission_id=submission.id) }}" 
+                                   class="btn btn-sm btn-primary">
+                                    <i class="fas fa-edit"></i> 
+                                    {% if submission.marking_status == 'completed' %}
+                                        View/Edit
+                                    {% else %}
+                                        Mark
+                                    {% endif %}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">No submissions yet</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
