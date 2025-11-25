@@ -42,30 +42,40 @@ class AIChatbot:
             print(f"Note: Could not retrieve PDF context: {e}")
             return ""  # Don't fail if PDFs aren't available
     
-    def get_intelligent_response(self, query, context=""):
-        """Get intelligent response using Gemini AI"""
+    def get_intelligent_response(self, query, context="", chat_history=""):
+        """Get intelligent response using Gemini AI with chat history"""
         try:
             if not self.use_gemini:
                 return self.get_fallback_response(query, context)
             
-            # Build the prompt for Gemini
+            # Build the prompt for Gemini with enhanced formatting instructions
+            base_instructions = """You are an intelligent learning assistant helping students with their studies.
+
+IMPORTANT FORMATTING RULES:
+1. Use **bold** for titles, headings, and important terms
+2. For code examples, wrap them in triple backticks with language name:
+   ```python
+   code here
+   ```
+3. Create clear paragraphs with double line breaks between them
+4. Use bullet points (•) or numbered lists (1. 2. 3.) for steps or multiple items
+5. Use single backticks `like this` for inline code, variables, or technical terms
+6. Structure your response with clear sections when explaining complex topics
+7. Be educational, clear, and encouraging"""
+            
+            # Build the full prompt
+            prompt_parts = [base_instructions]
+            
+            if chat_history:
+                prompt_parts.append(f"\n\nPrevious conversation context:\n{chat_history}")
+            
             if context:
-                # If we have PDF context, include it as reference material
-                prompt = f"""You are an intelligent learning assistant helping students understand their course materials.
-
-Context from uploaded course materials:
-{context}
-
-Student's Question: {query}
-
-Please provide a comprehensive and helpful answer. If the question is related to the course materials above, use that information. If the question is general or requires broader knowledge, provide a well-informed response using your knowledge. Always be educational, clear, and encouraging."""
-            else:
-                # No PDF context - answer from general knowledge
-                prompt = f"""You are an intelligent learning assistant helping students with their studies.
-
-Student's Question: {query}
-
-Please provide a comprehensive, educational, and helpful answer. Be clear, encouraging, and thorough in your explanation. If it's a greeting or casual question, respond naturally. For academic questions, provide detailed explanations with examples where appropriate."""
+                prompt_parts.append(f"\n\nContext from uploaded course materials:\n{context}")
+            
+            prompt_parts.append(f"\n\nStudent's Question: {query}")
+            prompt_parts.append("\n\nProvide a comprehensive and well-formatted answer:")
+            
+            prompt = "".join(prompt_parts)
             
             # Get response from Gemini
             response = self.gemini_model.generate_content(prompt)
@@ -122,15 +132,15 @@ Please provide a comprehensive, educational, and helpful answer. Be clear, encou
                     "Make sure your HOD has uploaded relevant PDFs for your courses."
                 )
     
-    def get_response(self, query, department_id=None):
-        """Main method to get chatbot response - Always uses Gemini AI"""
+    def get_response(self, query, department_id=None, chat_history=""):
+        """Main method to get chatbot response - Always uses Gemini AI with history"""
         try:
             # Get context from PDFs (optional, not required)
             context = self.get_context_from_pdfs(query, department_id)
             
             # ALWAYS use Gemini AI for intelligent responses
             # Whether we have PDF context or not, Gemini will provide the answer
-            response = self.get_intelligent_response(query, context)
+            response = self.get_intelligent_response(query, context, chat_history)
             
             return response
             

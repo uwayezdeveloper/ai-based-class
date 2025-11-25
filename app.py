@@ -904,15 +904,28 @@ def student_chatbot():
 def chatbot_message():
     data = request.json
     message = data.get('message', '')
+    chat_history = data.get('history', '')
     department_id = session.get('department_id')
+    user_id = session.get('user_id')
     
     if not message:
         return jsonify({'error': 'Message is required'}), 400
     
-    # Get AI response
-    response = chatbot.get_response(message, department_id)
+    # Get AI response with chat history context
+    response = chatbot.get_response(message, department_id, chat_history)
+    
+    # Save to database
+    if user_id:
+        chatbot.save_chat_history(user_id, message, response, department_id)
     
     return jsonify({'response': response})
+
+@app.route('/chatbot/history')
+@login_required
+def get_chat_history():
+    user_id = session.get('user_id')
+    history = chatbot.get_chat_history(user_id, limit=10)
+    return jsonify({'history': history})
 
 # API Routes for AJAX
 @app.route('/api/departments')
