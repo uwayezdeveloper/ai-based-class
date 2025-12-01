@@ -52,7 +52,7 @@ def create_tables():
             name VARCHAR(255) NOT NULL,
             email VARCHAR(255) UNIQUE NOT NULL,
             password VARCHAR(255) NOT NULL,
-            role ENUM('admin', 'hod', 'student') NOT NULL,
+            role ENUM('admin', 'hod', 'lecturer', 'student') NOT NULL DEFAULT 'student',
             department_id INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -135,6 +135,11 @@ def create_tables():
             user_id INT NOT NULL,
             answers JSON NOT NULL,
             score DECIMAL(5,2) NOT NULL,
+            auto_score DECIMAL(5,2) DEFAULT 0,
+            manual_score DECIMAL(5,2) DEFAULT NULL,
+            manual_marks JSON DEFAULT NULL,
+            marking_status ENUM('pending', 'completed', 'partial') DEFAULT 'completed',
+            feedback TEXT DEFAULT NULL,
             course_id INT NOT NULL,
             submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE,
@@ -182,6 +187,23 @@ def create_tables():
         )
     ''')
     
+    # Course lecturers table (for lecturer assignments)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS course_lecturers (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            course_id INT NOT NULL,
+            lecturer_id INT NOT NULL,
+            assigned_by INT,
+            assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+            FOREIGN KEY (lecturer_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL,
+            UNIQUE KEY unique_course_lecturer (course_id, lecturer_id),
+            INDEX idx_course (course_id),
+            INDEX idx_lecturer (lecturer_id)
+        )
+    ''')
+    
     conn.commit()
     cursor.close()
     conn.close()
@@ -189,23 +211,23 @@ def create_tables():
     return True
 
 def insert_default_data():
-    """Insert default admin, HOD, and student users"""
+    """Insert default DAS, HOD, and student users"""
     conn = get_db_connection()
     if not conn:
         return False
     
     cursor = conn.cursor()
     
-    # Check if admin exists
-    cursor.execute("SELECT id FROM users WHERE email = 'admin@gmail.com'")
+    # Check if DAS exists
+    cursor.execute("SELECT id FROM users WHERE email = 'das@gmail.com'")
     if not cursor.fetchone():
         # Create default admin
-        admin_password = generate_password_hash('admin@gmail.com')
+        admin_password = generate_password_hash('das123')
         cursor.execute(
             "INSERT INTO users (name, email, password, role) VALUES (%s, %s, %s, %s)",
-            ('Admin User', 'admin@gmail.com', admin_password, 'admin')
+            ('Admin User', 'das@gmail.com', admin_password, 'admin')
         )
-        print("✓ Default admin user created (email: admin@gmail.com, password: admin@gmail.com)")
+        print("✓ Default admin user created (email: admin@gmail.com, password: admin123)")
     
     # Create sample department if none exists
     cursor.execute("SELECT id FROM departments LIMIT 1")
@@ -226,22 +248,41 @@ def insert_default_data():
         # Create default HOD for Computer Science
         cursor.execute("SELECT id FROM users WHERE email = 'hod@gmail.com'")
         if not cursor.fetchone():
-            hod_password = generate_password_hash('hod@gmail.com')
+            hod_password = generate_password_hash('hod123')
             cursor.execute(
                 "INSERT INTO users (name, email, password, role, department_id) VALUES (%s, %s, %s, %s, %s)",
                 ('HOD User', 'hod@gmail.com', hod_password, 'hod', dept_id)
             )
-            print("✓ Default HOD user created (email: hod@gmail.com, password: hod@gmail.com)")
+            print("✓ Default HOD user created (email: hod@gmail.com, password: hod123)")
+        
+        # Create default lecturers
+        cursor.execute("SELECT id FROM users WHERE email = 'lecturer1@gmail.com'")
+        if not cursor.fetchone():
+            lecturer_password = generate_password_hash('lecturer123')
+            cursor.execute(
+                "INSERT INTO users (name, email, password, role, department_id) VALUES (%s, %s, %s, %s, %s)",
+                ('Dr. John Smith', 'lecturer1@gmail.com', lecturer_password, 'lecturer', dept_id)
+            )
+            print("✓ Default lecturer created (email: lecturer1@gmail.com, password: lecturer123)")
+        
+        cursor.execute("SELECT id FROM users WHERE email = 'lecturer2@gmail.com'")
+        if not cursor.fetchone():
+            lecturer_password = generate_password_hash('lecturer123')
+            cursor.execute(
+                "INSERT INTO users (name, email, password, role, department_id) VALUES (%s, %s, %s, %s, %s)",
+                ('Prof. Sarah Johnson', 'lecturer2@gmail.com', lecturer_password, 'lecturer', dept_id)
+            )
+            print("✓ Default lecturer created (email: lecturer2@gmail.com, password: lecturer123)")
         
         # Create default student
         cursor.execute("SELECT id FROM users WHERE email = 'student@gmail.com'")
         if not cursor.fetchone():
-            student_password = generate_password_hash('student@gmail.com')
+            student_password = generate_password_hash('student123')
             cursor.execute(
                 "INSERT INTO users (name, email, password, role, department_id) VALUES (%s, %s, %s, %s, %s)",
                 ('Student User', 'student@gmail.com', student_password, 'student', dept_id)
             )
-            print("✓ Default student user created (email: student@gmail.com, password: student@gmail.com)")
+            print("✓ Default student user created (email: student@gmail.com, password: student123)")
     
     conn.commit()
     cursor.close()

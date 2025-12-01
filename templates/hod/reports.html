@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Quiz Reports{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+<a class="nav-link" href="{{ url_for('hod_lecturers') }}">
+    <i class="fas fa-chalkboard-teacher me-2"></i>Lecturers
+</a>
+<a class="nav-link active" href="{{ url_for('hod_reports') }}">
+    <i class="fas fa-chart-bar me-2"></i>Reports
+</a>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.report-card {
+    transition: transform 0.2s;
+}
+.report-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="fas fa-chart-bar me-2"></i>Quiz Attendance Reports</h2>
+
+<div class="row g-4">
+    {% for quiz in quizzes %}
+    <div class="col-md-6">
+        <div class="card report-card">
+            <div class="card-body">
+                <h5 class="card-title">{{ quiz.title }}</h5>
+                <p class="text-muted mb-3">
+                    <i class="fas fa-book me-2"></i>{{ quiz.course_name }} ({{ quiz.course_code }})
+                </p>
+                
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="p-3 bg-primary bg-opacity-10 rounded">
+                            <h3 class="mb-0">{{ quiz.total_students }}</h3>
+                            <small class="text-muted">Students</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-success bg-opacity-10 rounded">
+                            <h3 class="mb-0">{{ quiz.total_submissions }}</h3>
+                            <small class="text-muted">Submissions</small>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-info bg-opacity-10 rounded">
+                            <h3 class="mb-0">{{ "%.1f"|format(quiz.avg_score or 0) }}</h3>
+                            <small class="text-muted">Avg Score</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button onclick="generatePDF({{ quiz.id }})" class="btn btn-danger">
+                        <i class="fas fa-file-pdf me-2"></i>Download PDF Report
+                    </button>
+                    <a href="{{ url_for('hod_quiz_submissions', quiz_id=quiz.id) }}" 
+                       class="btn btn-outline-primary">
+                        <i class="fas fa-eye me-2"></i>View Details
+                    </a>
+                </div>
+                
+                <small class="text-muted mt-2 d-block">
+                    Created: {{ quiz.created_at.strftime('%Y-%m-%d %H:%M') }}
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% if not quizzes %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-chart-bar fa-4x text-muted mb-3"></i>
+                <h4 class="text-muted">No quiz reports available</h4>
+                <p class="text-muted">Create quizzes to see attendance reports here</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+async function generatePDF(quizId) {
+    try {
+        // Show loading
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+        btn.disabled = true;
+        
+        // Fetch quiz data
+        const response = await fetch(`{{ url_for('hod_quiz_report_data', quiz_id=0) }}`.replace('0', quizId));
+        const data = await response.json();
+        
+        // Initialize jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Add title
+        doc.setFontSize(20);
+        doc.setTextColor(79, 70, 229); // Primary color
+        doc.text('Quiz Attendance Report', 14, 20);
+        
+        // Add quiz details
+        doc.setFontSize(12);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Quiz: ${data.quiz.title}`, 14, 35);
+        doc.text(`Course: ${data.quiz.course}`, 14, 42);
+        doc.text(`Duration: ${data.quiz.duration} minutes`, 14, 49);
+        doc.text(`Total Points: ${data.quiz.total_points}`, 14, 56);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 63);
+        
+        // Add statistics
+        doc.setFontSize(14);
+        doc.setTextColor(79, 70, 229);
+        doc.text('Statistics', 14, 75);
+        
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Total Students Participated: ${data.submissions.length}`, 14, 83);
+        
+        if (data.submissions.length > 0) {
+            const totalScore = data.submissions.reduce((sum, s) => sum + s.score, 0);
+            const avgScore = totalScore / data.submissions.length;
+            const maxScore = Math.max(...data.submissions.map(s => s.score));
+            const minScore = Math.min(...data.submissions.map(s => s.score));
+            
+            doc.text(`Average Score: ${avgScore.toFixed(2)} / ${data.quiz.total_points}`, 14, 90);
+            doc.text(`Highest Score: ${maxScore.toFixed(2)}`, 14, 97);
+            doc.text(`Lowest Score: ${minScore.toFixed(2)}`, 14, 104);
+        }
+        
+        // Add student submissions table
+        if (data.submissions.length > 0) {
+            doc.setFontSize(14);
+            doc.setTextColor(79, 70, 229);
+            doc.text('Student Submissions', 14, 118);
+            
+            // Prepare table data
+            const tableData = data.submissions.map((sub, index) => [
+                index + 1,
+                sub.name,
+                sub.email,
+                sub.score.toFixed(2),
+                `${(sub.score / data.quiz.total_points * 100).toFixed(1)}%`,
+                sub.status.toUpperCase(),
+                sub.submitted_at
+            ]);
+            
+            // Add table
+            doc.autoTable({
+                startY: 125,
+                head: [['#', 'Name', 'Email', 'Score', 'Percentage', 'Status', 'Submitted At']],
+                body: tableData,
+                styles: {
+                    fontSize: 9,
+                    cellPadding: 3
+                },
+                headStyles: {
+                    fillColor: [79, 70, 229],
+                    textColor: 255,
+                    fontStyle: 'bold'
+                },
+                alternateRowStyles: {
+                    fillColor: [245, 247, 250]
+                },
+                columnStyles: {
+                    0: { cellWidth: 10 },
+                    1: { cellWidth: 35 },
+                    2: { cellWidth: 45 },
+                    3: { cellWidth: 20 },
+                    4: { cellWidth: 25 },
+                    5: { cellWidth: 25 },
+                    6: { cellWidth: 35 }
+                }
+            });
+        } else {
+            doc.setFontSize(11);
+            doc.setTextColor(150, 150, 150);
+            doc.text('No submissions yet', 14, 125);
+        }
+        
+        // Add footer
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(9);
+            doc.setTextColor(150, 150, 150);
+            doc.text(
+                `AI-Powered LMS - Page ${i} of ${pageCount}`,
+                doc.internal.pageSize.getWidth() / 2,
+                doc.internal.pageSize.getHeight() - 10,
+                { align: 'center' }
+            );
+        }
+        
+        // Save PDF
+        const filename = `Quiz_Report_${data.quiz.title.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(filename);
+        
+        // Restore button
+        btn.innerHTML = originalHTML;
+        btn.disabled = false;
+        
+    } catch (error) {
+        console.error('Error generating PDF:', error);
+        alert('Error generating PDF report. Please try again.');
+        event.target.closest('button').innerHTML = originalHTML;
+        event.target.closest('button').disabled = false;
+    }
+}
+</script>
+{% endblock %}

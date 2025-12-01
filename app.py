@@ -142,6 +142,8 @@ def dashboard():
         return redirect(url_for('admin_dashboard'))
     elif role == 'hod':
         return redirect(url_for('hod_dashboard'))
+    elif role == 'lecturer':
+        return redirect(url_for('lecturer_dashboard'))
     else:
         return redirect(url_for('student_dashboard'))
 
@@ -239,6 +241,66 @@ def admin_hods():
     
     return render_template('admin/hods.html', hods=hods, departments=departments)
 
+@app.route('/admin/hod/<int:hod_id>/edit', methods=['POST'])
+@role_required(['admin'])
+def admin_edit_hod(hod_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    name = request.form.get('name')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    department_id = request.form.get('department_id')
+    
+    # Check if email exists for other users
+    cursor.execute('SELECT id FROM users WHERE email = %s AND id != %s', (email, hod_id))
+    if cursor.fetchone():
+        flash('Email already exists', 'error')
+    else:
+        # Update HOD
+        if password:
+            # Update with new password
+            hashed_password = generate_password_hash(password)
+            cursor.execute('''
+                UPDATE users 
+                SET name = %s, email = %s, password = %s, department_id = %s 
+                WHERE id = %s AND role = 'hod'
+            ''', (name, email, hashed_password, department_id, hod_id))
+        else:
+            # Update without changing password
+            cursor.execute('''
+                UPDATE users 
+                SET name = %s, email = %s, department_id = %s 
+                WHERE id = %s AND role = 'hod'
+            ''', (name, email, department_id, hod_id))
+        
+        conn.commit()
+        flash('HOD updated successfully', 'success')
+    
+    cursor.close()
+    conn.close()
+    return redirect(url_for('admin_hods'))
+
+@app.route('/admin/hod/<int:hod_id>/delete', methods=['POST'])
+@role_required(['admin'])
+def admin_delete_hod(hod_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    # Verify it's a HOD
+    cursor.execute('SELECT id FROM users WHERE id = %s AND role = "hod"', (hod_id,))
+    if not cursor.fetchone():
+        flash('HOD not found', 'error')
+    else:
+        # Delete HOD (courses and other related data will cascade or can be reassigned)
+        cursor.execute('DELETE FROM users WHERE id = %s', (hod_id,))
+        conn.commit()
+        flash('HOD deleted successfully', 'success')
+    
+    cursor.close()
+    conn.close()
+    return redirect(url_for('admin_hods'))
+
 # HOD Routes
 @app.route('/hod/dashboard')
 @role_required(['hod'])
@@ -290,7 +352,18 @@ def hod_courses():
         conn.commit()
         flash('Course added successfully', 'success')
     
-    cursor.execute('SELECT * FROM courses WHERE department_id = %s ORDER BY created_at DESC', (dept_id,))
+    # Get courses with lecturer info
+    cursor.execute('''
+        SELECT c.*, 
+               GROUP_CONCAT(u.name SEPARATOR ', ') as lecturer_names,
+               COUNT(DISTINCT cl.lecturer_id) as lecturer_count
+        FROM courses c
+        LEFT JOIN course_lecturers cl ON c.id = cl.course_id
+        LEFT JOIN users u ON cl.lecturer_id = u.id
+        WHERE c.department_id = %s 
+        GROUP BY c.id
+        ORDER BY c.created_at DESC
+    ''', (dept_id,))
     courses = cursor.fetchall()
     
     cursor.close()
@@ -440,7 +513,7 @@ def hod_quiz_submissions(quiz_id):
     # Calculate average score
     avg_score = 0
     if submissions:
-        total_score = sum(s['score'] for s in submissions)
+        total_score = sum(float(s['score']) if s['score'] is not None else 0.0 for s in submissions)
         avg_score = (total_score / len(submissions) / total_points * 100) if total_points > 0 else 0
     
     cursor.close()
@@ -502,8 +575,9 @@ def hod_mark_submission(submission_id):
                     'feedback': feedback
                 }
         
-        # Update submission
-        total_score = (submission['auto_score'] or 0) + manual_score
+        # Update submission - convert Decimal to float for calculation
+        auto_score = float(submission['auto_score']) if submission['auto_score'] is not None else 0.0
+        total_score = auto_score + manual_score
         general_feedback = data.get('general_feedback', '')
         
         cursor.execute('''
@@ -590,7 +664,7 @@ def hod_generate_report(quiz_id):
     }
     
     if submissions:
-        scores = [s['score'] for s in submissions]
+        scores = [float(s['score']) if s['score'] is not None else 0.0 for s in submissions]
         stats['avg_score'] = sum(scores) / len(scores)
         stats['highest_score'] = max(scores)
         stats['lowest_score'] = min(scores)
@@ -605,6 +679,690 @@ def hod_generate_report(quiz_id):
                          total_points=total_points,
                          stats=stats,
                          now=datetime.now)
+
+# HOD Lecturer Management Routes
+@app.route('/hod/lecturers')
+@role_required(['hod'])
+def hod_lecturers():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    dept_id = session.get('department_id')
+    
+    # Get all lecturers in this department
+    cursor.execute('''
+        SELECT u.*, 
+               COUNT(DISTINCT cl.course_id) as course_count
+        FROM users u
+        LEFT JOIN course_lecturers cl ON u.id = cl.lecturer_id
+        WHERE u.role = 'lecturer' AND u.department_id = %s
+        GROUP BY u.id
+        ORDER BY u.name
+    ''', (dept_id,))
+    lecturers = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('hod/lecturers.html', lecturers=lecturers)
+
+@app.route('/hod/lecturer/add', methods=['GET', 'POST'])
+@role_required(['hod'])
+def hod_add_lecturer():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        dept_id = session.get('department_id')
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Check if email exists
+        cursor.execute('SELECT id FROM users WHERE email = %s', (email,))
+        if cursor.fetchone():
+            flash('Email already exists', 'error')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('hod_add_lecturer'))
+        
+        # Create lecturer account
+        hashed_password = generate_password_hash(password)
+        cursor.execute('''
+            INSERT INTO users (name, email, password, role, department_id)
+            VALUES (%s, %s, %s, 'lecturer', %s)
+        ''', (name, email, hashed_password, dept_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        flash('Lecturer added successfully!', 'success')
+        return redirect(url_for('hod_lecturers'))
+    
+    return render_template('hod/add_lecturer.html')
+
+@app.route('/hod/lecturer/<int:lecturer_id>/delete', methods=['POST'])
+@role_required(['hod'])
+def hod_delete_lecturer(lecturer_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    dept_id = session.get('department_id')
+    
+    # Verify lecturer belongs to this department
+    cursor.execute('SELECT id FROM users WHERE id = %s AND department_id = %s AND role = "lecturer"', 
+                   (lecturer_id, dept_id))
+    if not cursor.fetchone():
+        flash('Lecturer not found', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('hod_lecturers'))
+    
+    # Delete lecturer (course_lecturers will be deleted due to CASCADE)
+    cursor.execute('DELETE FROM users WHERE id = %s', (lecturer_id,))
+    conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    flash('Lecturer deleted successfully', 'success')
+    return redirect(url_for('hod_lecturers'))
+
+@app.route('/hod/course/<int:course_id>/assign', methods=['GET', 'POST'])
+@role_required(['hod'])
+def hod_assign_course(course_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    dept_id = session.get('department_id')
+    
+    # Get course
+    cursor.execute('SELECT * FROM courses WHERE id = %s AND department_id = %s', (course_id, dept_id))
+    course = cursor.fetchone()
+    
+    if not course:
+        flash('Course not found', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('hod_courses'))
+    
+    if request.method == 'POST':
+        lecturer_id = request.form.get('lecturer_id')
+        
+        # Check if already assigned
+        cursor.execute('SELECT id FROM course_lecturers WHERE course_id = %s AND lecturer_id = %s', 
+                      (course_id, lecturer_id))
+        if cursor.fetchone():
+            flash('Course already assigned to this lecturer', 'warning')
+        else:
+            # Assign course
+            cursor.execute('''
+                INSERT INTO course_lecturers (course_id, lecturer_id, assigned_by)
+                VALUES (%s, %s, %s)
+            ''', (course_id, lecturer_id, session['user_id']))
+            
+            conn.commit()
+            flash('Course assigned successfully!', 'success')
+            return redirect(url_for('hod_courses'))
+    
+    # Get lecturers
+    cursor.execute('SELECT id, name, email FROM users WHERE role = "lecturer" AND department_id = %s ORDER BY name', 
+                   (dept_id,))
+    lecturers = cursor.fetchall()
+    
+    # Get current assignments
+    cursor.execute('''
+        SELECT u.name, u.email, cl.assigned_at
+        FROM course_lecturers cl
+        JOIN users u ON cl.lecturer_id = u.id
+        WHERE cl.course_id = %s
+    ''', (course_id,))
+    assignments = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('hod/assign_course.html', course=course, lecturers=lecturers, assignments=assignments)
+
+@app.route('/hod/course/<int:course_id>/delete', methods=['POST'])
+@role_required(['hod'])
+def hod_delete_course(course_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    dept_id = session.get('department_id')
+    
+    # Verify course belongs to this department
+    cursor.execute('SELECT id FROM courses WHERE id = %s AND department_id = %s', (course_id, dept_id))
+    if not cursor.fetchone():
+        flash('Course not found', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('hod_courses'))
+    
+    # Delete course (materials, quizzes, assignments will be deleted due to CASCADE)
+    cursor.execute('DELETE FROM courses WHERE id = %s', (course_id,))
+    conn.commit()
+    
+    cursor.close()
+    conn.close()
+    
+    flash('Course deleted successfully', 'success')
+    return redirect(url_for('hod_courses'))
+
+@app.route('/hod/reports')
+@role_required(['hod'])
+def hod_reports():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    dept_id = session.get('department_id')
+    
+    # Get all quizzes with submission stats
+    cursor.execute('''
+        SELECT q.id, q.title, c.name as course_name, c.code as course_code,
+               COUNT(DISTINCT qs.user_id) as total_students,
+               COUNT(DISTINCT qs.id) as total_submissions,
+               AVG(qs.score) as avg_score,
+               q.created_at
+        FROM quizzes q
+        JOIN courses c ON q.course_id = c.id
+        LEFT JOIN quiz_submissions qs ON q.id = qs.quiz_id
+        WHERE q.department_id = %s
+        GROUP BY q.id
+        ORDER BY q.created_at DESC
+    ''', (dept_id,))
+    quizzes = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('hod/reports.html', quizzes=quizzes)
+
+@app.route('/hod/reports/quiz/<int:quiz_id>/data')
+@role_required(['hod'])
+def hod_quiz_report_data(quiz_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    dept_id = session.get('department_id')
+    
+    # Get quiz details
+    cursor.execute('''
+        SELECT q.*, c.name as course_name
+        FROM quizzes q
+        JOIN courses c ON q.course_id = c.id
+        WHERE q.id = %s AND q.department_id = %s
+    ''', (quiz_id, dept_id))
+    quiz = cursor.fetchone()
+    
+    if not quiz:
+        return jsonify({'error': 'Quiz not found'}), 404
+    
+    # Get all submissions
+    cursor.execute('''
+        SELECT u.name, u.email, qs.score, qs.auto_score, qs.manual_score,
+               qs.marking_status, qs.submitted_at
+        FROM quiz_submissions qs
+        JOIN users u ON qs.user_id = u.id
+        WHERE qs.quiz_id = %s
+        ORDER BY u.name
+    ''', (quiz_id,))
+    submissions = cursor.fetchall()
+    
+    # Calculate total points
+    questions = json.loads(quiz['questions'])
+    total_points = sum(q.get('points', 10) for q in questions)
+    
+    cursor.close()
+    conn.close()
+    
+    # Convert to serializable format
+    result = {
+        'quiz': {
+            'title': quiz['title'],
+            'course': quiz['course_name'],
+            'total_points': total_points,
+            'duration': quiz['duration']
+        },
+        'submissions': []
+    }
+    
+    for sub in submissions:
+        result['submissions'].append({
+            'name': sub['name'],
+            'email': sub['email'],
+            'score': float(sub['score']) if sub['score'] else 0,
+            'auto_score': float(sub['auto_score']) if sub['auto_score'] else 0,
+            'manual_score': float(sub['manual_score']) if sub['manual_score'] else 0,
+            'status': sub['marking_status'],
+            'submitted_at': sub['submitted_at'].strftime('%Y-%m-%d %H:%M:%S') if sub['submitted_at'] else ''
+        })
+    
+    return jsonify(result)
+
+# Lecturer Routes
+@app.route('/lecturer/dashboard')
+@role_required(['lecturer'])
+def lecturer_dashboard():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    dept_id = session.get('department_id')
+    
+    # Get assigned courses
+    cursor.execute('''
+        SELECT c.*, cl.assigned_at,
+               COUNT(DISTINCT m.id) as material_count,
+               COUNT(DISTINCT q.id) as quiz_count
+        FROM course_lecturers cl
+        JOIN courses c ON cl.course_id = c.id
+        LEFT JOIN materials m ON c.id = m.course_id
+        LEFT JOIN quizzes q ON c.id = q.course_id
+        WHERE cl.lecturer_id = %s
+        GROUP BY c.id
+        ORDER BY c.name
+    ''', (lecturer_id,))
+    courses = cursor.fetchall()
+    
+    # Get stats
+    cursor.execute('''
+        SELECT COUNT(DISTINCT cl.course_id) as total_courses
+        FROM course_lecturers cl
+        WHERE cl.lecturer_id = %s
+    ''', (lecturer_id,))
+    stats = cursor.fetchone()
+    
+    cursor.execute('''
+        SELECT COUNT(*) as total_quizzes
+        FROM quizzes q
+        JOIN course_lecturers cl ON q.course_id = cl.course_id
+        WHERE cl.lecturer_id = %s
+    ''', (lecturer_id,))
+    quiz_stats = cursor.fetchone()
+    stats['total_quizzes'] = quiz_stats['total_quizzes']
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('lecturer/dashboard.html', courses=courses, stats=stats)
+
+@app.route('/lecturer/courses')
+@role_required(['lecturer'])
+def lecturer_courses():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    
+    # Get assigned courses
+    cursor.execute('''
+        SELECT c.*, cl.assigned_at,
+               COUNT(DISTINCT m.id) as material_count,
+               COUNT(DISTINCT q.id) as quiz_count,
+               COUNT(DISTINCT qs.user_id) as student_count
+        FROM course_lecturers cl
+        JOIN courses c ON cl.course_id = c.id
+        LEFT JOIN materials m ON c.id = m.course_id
+        LEFT JOIN quizzes q ON c.id = q.course_id
+        LEFT JOIN quiz_submissions qs ON q.id = qs.quiz_id
+        WHERE cl.lecturer_id = %s
+        GROUP BY c.id
+        ORDER BY c.name
+    ''', (lecturer_id,))
+    courses = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('lecturer/courses.html', courses=courses)
+
+# Lecturer uses same quiz and material management as HOD
+@app.route('/lecturer/course/<int:course_id>/materials', methods=['GET', 'POST'])
+@role_required(['lecturer'])
+def lecturer_materials(course_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    dept_id = session.get('department_id')
+    
+    # Verify lecturer is assigned to this course
+    cursor.execute('''
+        SELECT c.* FROM courses c
+        JOIN course_lecturers cl ON c.id = cl.course_id
+        WHERE c.id = %s AND cl.lecturer_id = %s
+    ''', (course_id, lecturer_id))
+    course = cursor.fetchone()
+    
+    if not course:
+        flash('Course not found or not assigned to you', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('lecturer_courses'))
+    
+    if request.method == 'POST':
+        title = request.form.get('title')
+        description = request.form.get('description')
+        file = request.files.get('file')
+        
+        if file and file.filename.endswith('.pdf'):
+            from werkzeug.utils import secure_filename
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"{timestamp}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs', filename)
+            file.save(filepath)
+            
+            # Process PDF for AI chatbot
+            pdf_processor.process_pdf(filepath, course_id)
+            
+            # Save to database
+            cursor.execute('''
+                INSERT INTO materials (title, description, file_path, course_id, department_id)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', (title, description, filename, course_id, dept_id))
+            conn.commit()
+            flash('Material uploaded successfully', 'success')
+        else:
+            flash('Please upload a PDF file', 'error')
+    
+    cursor.execute('SELECT * FROM materials WHERE course_id = %s ORDER BY created_at DESC', (course_id,))
+    materials = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('lecturer/materials.html', course=course, materials=materials)
+
+@app.route('/lecturer/material/upload', methods=['POST'])
+@role_required(['lecturer'])
+def lecturer_upload_material():
+    course_id = request.form.get('course_id')
+    title = request.form.get('title')
+    description = request.form.get('description')
+    file = request.files.get('file')
+    
+    if not file or file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('lecturer_materials', course_id=course_id))
+    
+    # Verify lecturer assignment
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    cursor.execute('''
+        SELECT c.id FROM courses c
+        JOIN course_lecturers cl ON c.id = cl.course_id
+        WHERE c.id = %s AND cl.lecturer_id = %s
+    ''', (course_id, lecturer_id))
+    
+    if not cursor.fetchone():
+        flash('Unauthorized', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('lecturer_courses'))
+    
+    # Save file
+    from werkzeug.utils import secure_filename
+    filename = secure_filename(file.filename)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"{timestamp}_{filename}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs', filename)
+    file.save(filepath)
+    
+    # Save to database
+    cursor.execute('''
+        INSERT INTO materials (title, description, file_path, course_id, uploaded_by)
+        VALUES (%s, %s, %s, %s, %s)
+    ''', (title, description, filepath, course_id, lecturer_id))
+    
+    material_id = cursor.lastrowid
+    
+    # Process PDF for AI
+    if filename.lower().endswith('.pdf'):
+        try:
+            pdf_processor.process_pdf(material_id, filepath, int(course_id))
+        except Exception as e:
+            print(f"Error processing PDF: {e}")
+    
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    flash('Material uploaded successfully!', 'success')
+    return redirect(url_for('lecturer_materials', course_id=course_id))
+
+@app.route('/lecturer/course/<int:course_id>/quizzes')
+@role_required(['lecturer'])
+def lecturer_quizzes(course_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    
+    # Verify assignment
+    cursor.execute('''
+        SELECT c.* FROM courses c
+        JOIN course_lecturers cl ON c.id = cl.course_id
+        WHERE c.id = %s AND cl.lecturer_id = %s
+    ''', (course_id, lecturer_id))
+    course = cursor.fetchone()
+    
+    if not course:
+        flash('Course not found', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('lecturer_courses'))
+    
+    cursor.execute('SELECT * FROM quizzes WHERE course_id = %s ORDER BY created_at DESC', (course_id,))
+    quizzes = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('lecturer/quizzes.html', course=course, quizzes=quizzes)
+
+@app.route('/lecturer/quiz/<int:quiz_id>/submissions')
+@role_required(['lecturer'])
+def lecturer_quiz_submissions(quiz_id):
+    # Reuse HOD submission viewing logic
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    
+    # Verify lecturer assignment
+    cursor.execute('''
+        SELECT q.*, c.name as course_name
+        FROM quizzes q
+        JOIN courses c ON q.course_id = c.id
+        JOIN course_lecturers cl ON c.id = cl.course_id
+        WHERE q.id = %s AND cl.lecturer_id = %s
+    ''', (quiz_id, lecturer_id))
+    quiz = cursor.fetchone()
+    
+    if not quiz:
+        flash('Quiz not found', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('lecturer_dashboard'))
+    
+    # Get submissions
+    cursor.execute('''
+        SELECT qs.*, u.name as student_name, u.email as student_email
+        FROM quiz_submissions qs
+        JOIN users u ON qs.user_id = u.id
+        WHERE qs.quiz_id = %s
+        ORDER BY qs.submitted_at DESC
+    ''', (quiz_id,))
+    submissions = cursor.fetchall()
+    
+    # Calculate stats
+    questions = json.loads(quiz['questions'])
+    total_points = sum(q.get('points', 10) for q in questions)
+    
+    avg_score = 0
+    if submissions:
+        total_score = sum(float(s['score']) if s['score'] is not None else 0.0 for s in submissions)
+        avg_score = (total_score / len(submissions) / total_points * 100) if total_points > 0 else 0
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('lecturer/quiz_submissions.html', 
+                         quiz=quiz, 
+                         submissions=submissions,
+                         total_points=total_points,
+                         avg_score=avg_score)
+
+@app.route('/lecturer/submission/<int:submission_id>/mark', methods=['GET', 'POST'])
+@role_required(['lecturer'])
+def lecturer_mark_submission(submission_id):
+    # Reuse HOD marking logic
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    
+    # Get submission with verification
+    cursor.execute('''
+        SELECT qs.*, u.name as student_name, u.email as student_email
+        FROM quiz_submissions qs
+        JOIN users u ON qs.user_id = u.id
+        JOIN quizzes q ON qs.quiz_id = q.id
+        JOIN course_lecturers cl ON q.course_id = cl.course_id
+        WHERE qs.id = %s AND cl.lecturer_id = %s
+    ''', (submission_id, lecturer_id))
+    submission = cursor.fetchone()
+    
+    if not submission:
+        flash('Submission not found', 'error')
+        cursor.close()
+        conn.close()
+        return redirect(url_for('lecturer_dashboard'))
+    
+    # Get quiz
+    cursor.execute('SELECT * FROM quizzes WHERE id = %s', (submission['quiz_id'],))
+    quiz = cursor.fetchone()
+    
+    if request.method == 'POST':
+        data = request.json
+        questions = json.loads(quiz['questions'])
+        manual_score = 0.0
+        manual_marks = {}
+        
+        for i, question in enumerate(questions):
+            if question.get('type') == 'open_ended':
+                points_key = f'question_{i}_points'
+                feedback_key = f'question_{i}_feedback'
+                
+                points = float(data.get(points_key, 0))
+                feedback = data.get(feedback_key, '')
+                
+                manual_score += points
+                manual_marks[str(i)] = {
+                    'points': points,
+                    'feedback': feedback
+                }
+        
+        auto_score = float(submission['auto_score']) if submission['auto_score'] is not None else 0.0
+        total_score = auto_score + manual_score
+        general_feedback = data.get('general_feedback', '')
+        
+        cursor.execute('''
+            UPDATE quiz_submissions 
+            SET manual_score = %s, 
+                score = %s, 
+                marking_status = 'completed',
+                marked_by = %s,
+                marked_at = NOW(),
+                feedback = %s
+            WHERE id = %s
+        ''', (manual_score, total_score, lecturer_id, general_feedback, submission_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'total_score': total_score})
+    
+    # GET request
+    questions = json.loads(quiz['questions'])
+    answers = json.loads(submission['answers'])
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template('lecturer/mark_submission.html',
+                         submission=submission,
+                         quiz=quiz,
+                         questions=questions,
+                         answers=answers)
+
+@app.route('/lecturer/quiz/create/<int:course_id>', methods=['GET', 'POST'])
+@role_required(['lecturer'])
+def lecturer_create_quiz(course_id):
+    if request.method == 'POST':
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        lecturer_id = session.get('user_id')
+        dept_id = session.get('department_id')
+        
+        # Verify assignment
+        cursor.execute('''
+            SELECT c.id FROM courses c
+            JOIN course_lecturers cl ON c.id = cl.course_id
+            WHERE c.id = %s AND cl.lecturer_id = %s
+        ''', (course_id, lecturer_id))
+        
+        if not cursor.fetchone():
+            flash('Unauthorized', 'error')
+            cursor.close()
+            conn.close()
+            return redirect(url_for('lecturer_courses'))
+        
+        data = request.json
+        title = data.get('title')
+        description = data.get('description')
+        duration = data.get('duration')
+        questions = data.get('questions')
+        
+        cursor.execute('''
+            INSERT INTO quizzes (title, description, duration, questions, course_id, department_id)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (title, description, duration, json.dumps(questions), course_id, dept_id))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True})
+    
+    # GET request
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    lecturer_id = session.get('user_id')
+    cursor.execute('''
+        SELECT c.* FROM courses c
+        JOIN course_lecturers cl ON c.id = cl.course_id
+        WHERE c.id = %s AND cl.lecturer_id = %s
+    ''', (course_id, lecturer_id))
+    course = cursor.fetchone()
+    
+    cursor.close()
+    conn.close()
+    
+    if not course:
+        flash('Course not found', 'error')
+        return redirect(url_for('lecturer_courses'))
+    
+    return render_template('lecturer/create_quiz.html', course=course)
 
 # Student Routes
 @app.route('/student/dashboard')
@@ -741,7 +1499,19 @@ def student_view_pdf(material_id):
 @app.route('/uploads/pdfs/<filename>')
 @login_required
 def serve_pdf(filename):
-    return send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs'), filename)
+    # Try new path first (uploads/pdfs/)
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs', filename)
+    if os.path.exists(pdf_path):
+        return send_from_directory(os.path.join(app.config['UPLOAD_FOLDER'], 'pdfs'), filename)
+    
+    # Fallback to old path (uploads/) for backwards compatibility
+    old_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if os.path.exists(old_path):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    
+    # File not found
+    flash('File not found', 'error')
+    return redirect(url_for('dashboard'))
 
 @app.route('/student/quizzes/<int:course_id>')
 @role_required(['student'])

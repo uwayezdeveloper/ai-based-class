@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Add Lecturer{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+<a class="nav-link active" href="{{ url_for('hod_lecturers') }}">
+    <i class="fas fa-chalkboard-teacher me-2"></i>Lecturers
+</a>
+<a class="nav-link" href="{{ url_for('hod_reports') }}">
+    <i class="fas fa-chart-bar me-2"></i>Reports
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{{ url_for('hod_lecturers') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Lecturers
+    </a>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-user-plus me-2"></i>Add New Lecturer</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Full Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email Address <span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                        <small class="text-muted">This will be used for login</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               minlength="6" required>
+                        <small class="text-muted">Minimum 6 characters</small>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        The lecturer will be added to your department and can be assigned to courses.
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-plus me-2"></i>Add Lecturer
+                        </button>
+                        <a href="{{ url_for('hod_lecturers') }}" class="btn btn-outline-secondary">
+                            Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

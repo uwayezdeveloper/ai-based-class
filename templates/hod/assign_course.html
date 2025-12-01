@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Assign Course - {{ course.name }}{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link" href="{{ url_for('hod_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link active" href="{{ url_for('hod_courses') }}">
+    <i class="fas fa-book me-2"></i>Courses
+</a>
+<a class="nav-link" href="{{ url_for('hod_lecturers') }}">
+    <i class="fas fa-chalkboard-teacher me-2"></i>Lecturers
+</a>
+<a class="nav-link" href="{{ url_for('hod_reports') }}">
+    <i class="fas fa-chart-bar me-2"></i>Reports
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{{ url_for('hod_courses') }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-2"></i>Back to Courses
+    </a>
+</div>
+
+<h2 class="mb-4"><i class="fas fa-user-plus me-2"></i>Assign Course: {{ course.name }}</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Assign Lecturer</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="lecturer_id" class="form-label">Select Lecturer</label>
+                        <select class="form-select" id="lecturer_id" name="lecturer_id" required>
+                            <option value="">-- Select a Lecturer --</option>
+                            {% for lecturer in lecturers %}
+                            <option value="{{ lecturer.id }}">{{ lecturer.name }} ({{ lecturer.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    {% if not lecturers %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        No lecturers available. Please <a href="{{ url_for('hod_add_lecturer') }}">add a lecturer</a> first.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary" {% if not lecturers %}disabled{% endif %}>
+                            <i class="fas fa-plus me-2"></i>Assign Course
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Current Assignments</h5>
+            </div>
+            <div class="card-body">
+                {% if assignments %}
+                <ul class="list-group">
+                    {% for assignment in assignments %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ assignment.name }}</strong><br>
+                                <small class="text-muted">{{ assignment.email }}</small><br>
+                                <small class="text-muted">Assigned: {{ assignment.assigned_at.strftime('%Y-%m-%d') }}</small>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted text-center mb-0">No lecturers assigned yet</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

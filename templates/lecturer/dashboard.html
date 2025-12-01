@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Lecturer Dashboard{% endblock %}
+
+{% block sidebar %}
+<a class="nav-link active" href="{{ url_for('lecturer_dashboard') }}">
+    <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+</a>
+<a class="nav-link" href="{{ url_for('lecturer_courses') }}">
+    <i class="fas fa-book me-2"></i>My Courses
+</a>
+{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Welcome, {{ session['name'] }}!</h2>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-white-50 mb-0">Assigned Courses</h6>
+                        <h2 class="mb-0">{{ stats.total_courses }}</h2>
+                    </div>
+                    <i class="fas fa-book fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-white-50 mb-0">Total Quizzes</h6>
+                        <h2 class="mb-0">{{ stats.total_quizzes }}</h2>
+                    </div>
+                    <i class="fas fa-clipboard-check fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title text-white-50 mb-0">Role</h6>
+                        <h2 class="mb-0">Lecturer</h2>
+                    </div>
+                    <i class="fas fa-chalkboard-teacher fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h4 class="mb-3">My Courses</h4>
+
+<div class="row g-4">
+    {% for course in courses %}
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">{{ course.name }}</h5>
+                <p class="text-muted mb-2"><strong>Code:</strong> {{ course.code }}</p>
+                <p class="card-text">{{ course.description }}</p>
+                
+                <div class="mb-3">
+                    <span class="badge bg-primary">{{ course.material_count }} Materials</span>
+                    <span class="badge bg-success">{{ course.quiz_count }} Quizzes</span>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('lecturer_materials', course_id=course.id) }}" class="btn btn-sm btn-primary">
+                        <i class="fas fa-file-pdf me-2"></i>Materials
+                    </a>
+                    <a href="{{ url_for('lecturer_quizzes', course_id=course.id) }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-clipboard-check me-2"></i>Quizzes
+                    </a>
+                </div>
+                
+                <small class="text-muted d-block mt-2">
+                    Assigned: {{ course.assigned_at.strftime('%Y-%m-%d') }}
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% if not courses %}
+    <div class="col-12">
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            No courses assigned yet. Please contact your HOD.
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
