@@ -585,11 +585,10 @@ def hod_mark_submission(submission_id):
             SET manual_score = %s, 
                 score = %s, 
                 marking_status = 'completed',
-                marked_by = %s,
-                marked_at = NOW(),
+                manual_marks = %s,
                 feedback = %s
             WHERE id = %s
-        ''', (manual_score, total_score, session['user_id'], general_feedback, submission_id))
+        ''', (manual_score, total_score, json.dumps(manual_marks), general_feedback, submission_id))
         
         conn.commit()
         cursor.close()
@@ -1278,11 +1277,10 @@ def lecturer_mark_submission(submission_id):
             SET manual_score = %s, 
                 score = %s, 
                 marking_status = 'completed',
-                marked_by = %s,
-                marked_at = NOW(),
+                manual_marks = %s,
                 feedback = %s
             WHERE id = %s
-        ''', (manual_score, total_score, lecturer_id, general_feedback, submission_id))
+        ''', (manual_score, total_score, json.dumps(manual_marks), general_feedback, submission_id))
         
         conn.commit()
         cursor.close()
@@ -1294,6 +1292,14 @@ def lecturer_mark_submission(submission_id):
     questions = json.loads(quiz['questions'])
     answers = json.loads(submission['answers'])
     
+    # Calculate total points
+    total_points = sum(q.get('points', 10) for q in questions)
+    
+    # Get manual marks if already marked
+    manual_marks = {}
+    if submission.get('manual_marks'):
+        manual_marks = json.loads(submission['manual_marks']) if isinstance(submission['manual_marks'], str) else submission['manual_marks']
+    
     cursor.close()
     conn.close()
     
@@ -1301,7 +1307,10 @@ def lecturer_mark_submission(submission_id):
                          submission=submission,
                          quiz=quiz,
                          questions=questions,
-                         answers=answers)
+                         answers=answers,
+                         total_points=total_points,
+                         manual_marks=manual_marks,
+                         enumerate=enumerate)
 
 @app.route('/lecturer/quiz/create/<int:course_id>', methods=['GET', 'POST'])
 @role_required(['lecturer'])
